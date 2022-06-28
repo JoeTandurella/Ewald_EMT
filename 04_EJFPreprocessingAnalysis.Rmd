@@ -1,0 +1,133 @@
+---
+title: "Psuedotime analysis of EMT genes"
+author: "Gaurav Sharma and Elana Fertig"
+date: "2/25/2020"
+output: html_document
+---
+
+# R setup
+
+```{r setup}
+library(monocle3)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+
+set.seed(9708)
+sessionInfo()
+```
+
+# Read data
+
+```{r}
+cds <- readRDS('../intermediateData/cdsBasic.RDS')
+pData(cds)$media <- as.character(pData(cds)$media)
+pData(cds)$media[is.na(pData(cds)$media)] <- 'CellLine'
+pData(cds)$mediaday <- paste(as.character(pData(cds)$media),as.character(pData(cds)$day),sep="-")
+geneList <- read.csv('../geneList.csv',header = F,stringsAsFactors = F)
+geneList$V1[1] = 'Krt5'
+EMTGenes <- geneList$V1
+```
+
+# Normalize data
+
+```{r}
+cdsNorm <- cds
+cdsNorm <- preprocess_cds(cdsNorm, num_dim = 50, method = "PCA")
+cdsNorm <- reduce_dimension(cdsNorm, reduction_method="UMAP",preprocess_method = "PCA")
+```
+
+### Plot uncorrected
+
+```{r}
+pdf('../finalFigures/uncorrectedMouseDay.pdf')
+plot_cells(cdsNorm,color_cells_by = "mouse-day",label_cell_groups = F)
+dev.off()
+```
+
+# Correct data
+```{r}
+cdsNorm = align_cds(cdsNorm, num_dim = 50, alignment_group = "day")
+cdsNorm <- reduce_dimension(cdsNorm,preprocess_method = "Aligned",reduction_method = "UMAP")
+```
+### Plot uncorrected
+
+```{r}
+pdf('../finalFigures/correctedMediaDay.pdf')
+plot_cells(cdsNorm,color_cells_by = "mediaday",label_cell_groups = F)
+dev.off()
+```
+
+```{r}
+library(SAVER)
+genes.ind <- which(rownames(cdsNorm) %in% EMTGenes)
+data.impute <- saver(exprs(cdsNorm),pred.genes = genes.ind,
+                                 pred.genes.only = TRUE, estimates.only = TRUE)
+saveRDS(data.impute,'../intermediateData/imputedData.rds')
+```
+
+# Psuedotime analysis for Collagen
+
+```{r}
+cdsNormCollagen <- cdsNorm[,pData(cdsNorm)$media=='Collagen']
+
+plot_cells(cdsNormCollagen, color_cells_by = 'day')
+cdsNormCollagen <- cluster_cells(cdsNormCollagen, random_seed = 100)
+cdsNormCollagen <- learn_graph(cdsNormCollagen)
+plot_cells(cdsNormCollagen, color_cells_by = 'day')
+
+cdsNormCollagen <- order_cells(cdsNormCollagen)
+plot_cells(cdsNormCollagen, color_cells_by = 'day')
+plot_cells(cdsNormCollagen, color_cells_by = 'pseudotime')
+
+plot_genes_in_pseudotime(cdsNormCollagen[c(EMTGenes[1:6],'Vim'),], color_cells_by = 'day')
+```
+
+# Psuedotime analysis for Matrigel
+
+
+```{r}
+
+cdsNormMatrigel <- cdsNorm[,pData(cdsNorm)$media=='Matrigel']
+
+plot_cells(cdsNormMatrigel, color_cells_by = 'day')
+cdsNormMatrigel <- cluster_cells(cdsNormMatrigel)
+cdsNormMatrigel <- learn_graph(cdsNormMatrigel)
+plot_cells(cdsNormMatrigel, color_cells_by = 'day')
+
+cdsNormMatrigel <- order_cells(cdsNormMatrigel)
+plot_cells(cdsNormMatrigel, color_cells_by = 'day')
+plot_cells(cdsNormMatrigel, color_cells_by = 'pseudotime')
+
+plot_genes_in_pseudotime(cdsNormMatrigel[c(EMTGenes[1:6],'Vim'),], color_cells_by = 'day')
+
+```
+
+## Regression analysis
+To find out if gene expression depends on pseudotime
+
+
+```{r}
+collagenPsuedotime <- pseudotime(cdsNormCollagen)
+#cdsNormCollagen)$pseudotime <- collagenPsuedotime
+validTime <- which(!is.infinite(collagenPsuedotime))
+cdsNormCollagen <- cdsNormCollagen[,validTime]
+collagenPsuedotime <- collagenPsuedotime[validTime]
+colData(cdsNormCollagen)$pseudotime <- collagenPsuedotime
+```
+
+```{r}
+epithelialGenes <- EMTGenes[c(1:4,6)]
+cdsCollagenEpithelial <- cdsNormCollagen[rowData(cds)$gene_short_name %in% epithelialGenes,] 
+geneFitsEpithelial <- fit_models(cdsCollagenEpithelial, model_formula_str = "~pseudotime + day")
+fitCoefs <- coefficient_table(geneFitsEpithelial)
+head(fitCoefs)
+```
+
+```{r}
+plot_cells(cdsNormCollagen,
+           genes=epithelialGenes,
+           label_cell_groups=FALSE,
+           show_trajectory_graph=FALSE)
+```
+

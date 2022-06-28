@@ -1,0 +1,261 @@
+---
+title: "CoGAPS Visuals -- TGF_BETA_SIGNALING Barplots"
+author: "Joe"
+date: "7/12/2021"
+output: html_document
+---
+
+```{r libraries , message = FALSE, warning = FALSE}
+library(CoGAPS)
+library('ComplexHeatmap')
+library(msigdbr)
+library(biomaRt)
+```
+
+```{r loadData}
+## Load the CoGAPS result
+# CoGAPS result paths
+gwCogapsPath <- list.files(path = "Cogaps/Whole/gwCogapsRes", full.names = TRUE)
+# Read in the results
+gwCogapsRes <- lapply(gwCogapsPath, readRDS)
+# Provide names for the cogaps results, this will help with plot names
+names(gwCogapsRes) <- gsub("gwCogapsRes/|.rds", "", gwCogapsPath)
+
+## Load the EMT genes
+Revision_EMTGenes <- read_excel("data/Revision_EMTGenes.xlsx")
+```
+
+```{r patternMarkerRank}
+## Calculate the pattern marker statistics ----
+## Duplicate the result to manipulate 
+filteredCogaps10 <- gwCogapsRes[[1]]
+filteredCogaps12 <- gwCogapsRes[[2]]
+filteredCogaps14 <- gwCogapsRes[[3]]
+filteredCogaps16 <- gwCogapsRes[[4]]
+filteredCogaps20 <- gwCogapsRes[[5]]
+filteredCogaps25 <- gwCogapsRes[[6]]
+
+## Eliminate the cell line patterns
+##nPatterns=10 -- P4
+##nPatterns=12 -- P2
+##nPatterns=14 -- P5
+##nPatterns=16 -- P10
+##nPatterns=20 -- P19
+##nPatterns=25 -- P7
+
+filteredCogaps10@featureLoadings <- filteredCogaps10@featureLoadings[, !colnames(filteredCogaps10@featureLoadings) %in%c("Pattern_4")]
+filteredCogaps12@featureLoadings <- filteredCogaps12@featureLoadings[, !colnames(filteredCogaps12@featureLoadings) %in%c("Pattern_2")]
+filteredCogaps14@featureLoadings <- filteredCogaps14@featureLoadings[, !colnames(filteredCogaps14@featureLoadings) %in%c("Pattern_5")]
+filteredCogaps16@featureLoadings <- filteredCogaps16@featureLoadings[, !colnames(filteredCogaps16@featureLoadings) %in%c("Pattern_10")]
+filteredCogaps20@featureLoadings <- filteredCogaps20@featureLoadings[, !colnames(filteredCogaps20@featureLoadings) %in%c("Pattern_19")]
+filteredCogaps25@featureLoadings <- filteredCogaps25@featureLoadings[, !colnames(filteredCogaps25@featureLoadings) %in%c("Pattern_7")]
+
+## Run pattern marker function
+patternMarkerResults10 <- patternMarkers(filteredCogaps10, threshold = "cut")
+patternMarkerResults12 <- patternMarkers(filteredCogaps12, threshold = "cut")
+patternMarkerResults14 <- patternMarkers(filteredCogaps14, threshold = "cut")
+patternMarkerResults16 <- patternMarkers(filteredCogaps16, threshold = "cut")
+patternMarkerResults20 <- patternMarkers(filteredCogaps20, threshold = "cut")
+patternMarkerResults25 <- patternMarkers(filteredCogaps25, threshold = "cut")
+
+## Extract the rank results for the EMT genes
+emtGeneRanks10 <- patternMarkerResults10$PatternMarkerRanks[rownames(patternMarkerResults10$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+emtGeneRanks12 <- patternMarkerResults12$PatternMarkerRanks[rownames(patternMarkerResults12$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+emtGeneRanks14 <- patternMarkerResults14$PatternMarkerRanks[rownames(patternMarkerResults14$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+emtGeneRanks16 <- patternMarkerResults16$PatternMarkerRanks[rownames(patternMarkerResults16$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+emtGeneRanks20 <- patternMarkerResults20$PatternMarkerRanks[rownames(patternMarkerResults20$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+emtGeneRanks25 <- patternMarkerResults25$PatternMarkerRanks[rownames(patternMarkerResults25$PatternMarkerRanks) %in% Revision_EMTGenes$Name, ]
+
+## Save the csv of pattern gene ranks
+write.csv(emtGeneRanks10, file = "Cogaps/Whole/emtGeneRanks10.csv", na = "")
+write.csv(emtGeneRanks12, file = "Cogaps/Whole/emtGeneRanks12.csv", na = "")
+write.csv(emtGeneRanks14, file = "Cogaps/Whole/emtGeneRanks14.csv", na = "")
+write.csv(emtGeneRanks16, file = "Cogaps/Whole/emtGeneRanks16.csv", na = "")
+write.csv(emtGeneRanks20, file = "Cogaps/Whole/emtGeneRanks20.csv", na = "")
+write.csv(emtGeneRanks25, file = "Cogaps/Whole/emtGeneRanks25.csv", na = "")
+
+##Extract Marker genes
+EMTpatternmarkers10 <- data.frame(lapply(patternMarkerResults10$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults10$PatternMarkers))))
+colnames(EMTpatternmarkers10) <- colnames(emtGeneRanks10)
+
+EMTpatternmarkers12 <- data.frame(lapply(patternMarkerResults12$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults12$PatternMarkers))))
+colnames(EMTpatternmarkers12) <- colnames(emtGeneRanks12)
+
+EMTpatternmarkers14 <- data.frame(lapply(patternMarkerResults14$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults14$PatternMarkers))))
+colnames(EMTpatternmarkers14) <- colnames(emtGeneRanks14)
+
+EMTpatternmarkers16 <- data.frame(lapply(patternMarkerResults16$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults16$PatternMarkers))))
+colnames(EMTpatternmarkers16) <- colnames(emtGeneRanks16)
+
+EMTpatternmarkers20 <- data.frame(lapply(patternMarkerResults20$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults20$PatternMarkers))))
+colnames(EMTpatternmarkers20) <- colnames(emtGeneRanks20)
+
+EMTpatternmarkers25 <- data.frame(lapply(patternMarkerResults25$PatternMarkers, "length<-",
+                                  max(lengths(patternMarkerResults25$PatternMarkers))))
+colnames(EMTpatternmarkers25) <- colnames(emtGeneRanks25)
+
+##Save the csv of pattern marker genes
+write.csv(EMTpatternmarkers10, file = "Cogaps/Whole/emtMarkerGenes10.csv", na = "")
+write.csv(EMTpatternmarkers12, file = "Cogaps/Whole/emtMarkerGenes12.csv", na = "")
+write.csv(EMTpatternmarkers14, file = "Cogaps/Whole/emtMarkerGenes14.csv", na = "")
+write.csv(EMTpatternmarkers16, file = "Cogaps/Whole/emtMarkerGenes16.csv", na = "")
+write.csv(EMTpatternmarkers20, file = "Cogaps/Whole/emtMarkerGenes20.csv", na = "")
+write.csv(EMTpatternmarkers25, file = "Cogaps/Whole/emtMarkerGenes25.csv", na = "")
+
+```
+
+##MsigDB Pathway Analysis
+```{r}
+# List of MsigDB hallmarks and the genes in each set
+hallmark_df <- msigdbr(species = "Mus musculus", category = "H")
+hallmark_list <- hallmark_df %>% split(x = .$gene_symbol, f = .$gs_name)
+
+# obtain universe of all mouse mgi gene symbols from ensembl
+ensembl <- useEnsembl(biomart = "genes")
+datasets <- listDatasets(ensembl)
+mart <- useEnsembl('genes', dataset = "mmusculus_gene_ensembl") #GRCm39
+listAttributes(mart)
+Mm_genes <- getBM(c("ensembl_gene_id","mgi_symbol"), mart = mart)
+
+##Create data.frame of results
+resultfiltered_P10 <- data.frame(matrix(nrow=length(EMTpatternmarkers10),ncol=6))
+resultfiltered_P12 <- data.frame(matrix(nrow=length(EMTpatternmarkers12),ncol=6))
+resultfiltered_P14 <- data.frame(matrix(nrow=length(EMTpatternmarkers14),ncol=6))
+resultfiltered_P16 <- data.frame(matrix(nrow=length(EMTpatternmarkers16),ncol=6))
+resultfiltered_P20 <- data.frame(matrix(nrow=length(EMTpatternmarkers20),ncol=6))
+resultfiltered_P25 <- data.frame(matrix(nrow=length(EMTpatternmarkers25),ncol=6))
+
+##Loop through all patterns in the pattern marker P10 file
+for(i in 1:length(EMTpatternmarkers10)){
+pattern <- na.omit(EMTpatternmarkers10[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P10[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P10)<- colnames(EMTpatternmarkers10)
+colnames(resultfiltered_P10)<- colnames(result)
+
+##Repeat above for all Cogaps Results
+
+#P12
+for(i in 1:length(EMTpatternmarkers12)){
+pattern <- na.omit(EMTpatternmarkers12[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P12[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P12)<- colnames(EMTpatternmarkers12)
+colnames(resultfiltered_P12)<- colnames(result)
+
+#P14
+for(i in 1:length(EMTpatternmarkers14)){
+pattern <- na.omit(EMTpatternmarkers14[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P14[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P14)<- colnames(EMTpatternmarkers14)
+colnames(resultfiltered_P14)<- colnames(result)
+
+#P16
+for(i in 1:length(EMTpatternmarkers16)){
+pattern <- na.omit(EMTpatternmarkers16[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P16[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P16)<- colnames(EMTpatternmarkers16)
+colnames(resultfiltered_P16)<- colnames(result)
+
+#P20
+for(i in 1:length(EMTpatternmarkers20)){
+pattern <- na.omit(EMTpatternmarkers20[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P20[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P20)<- colnames(EMTpatternmarkers20)
+colnames(resultfiltered_P20)<- colnames(result)
+
+#P25
+for(i in 1:length(EMTpatternmarkers25)){
+pattern <- na.omit(EMTpatternmarkers25[i])
+result <- fora(pathways = hallmark_list,
+                   genes = pattern[,1],
+                   universe = unique(Mm_genes$mgi_symbol),
+                   maxSize=2038)
+resultfiltered_P25[i,] <- result[result$pathway=="HALLMARK_TGF_BETA_SIGNALING",]
+}
+rownames(resultfiltered_P25)<- colnames(EMTpatternmarkers25)
+colnames(resultfiltered_P25)<- colnames(result)
+
+##Add -10log10(adjPval) column to each result
+resultfiltered_P10$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P10$padj)
+resultfiltered_P12$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P12$padj)
+resultfiltered_P14$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P14$padj)
+resultfiltered_P16$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P16$padj)
+resultfiltered_P20$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P20$padj)
+resultfiltered_P25$'-10*log10(padj)' <- (-10)*log10(resultfiltered_P25$padj)
+
+##Add pattern coluimn to each
+resultfiltered_P10$Pattern <- rownames(resultfiltered_P10)
+resultfiltered_P12$Pattern <- rownames(resultfiltered_P12)
+resultfiltered_P14$Pattern <- rownames(resultfiltered_P14)
+resultfiltered_P16$Pattern <- rownames(resultfiltered_P16)
+resultfiltered_P20$Pattern <- rownames(resultfiltered_P20)
+resultfiltered_P25$Pattern <- rownames(resultfiltered_P25)
+
+##save results
+save(resultfiltered_P10,resultfiltered_P12,resultfiltered_P14,resultfiltered_P16,resultfiltered_P20,resultfiltered_P25, file="Cogaps/Whole/TGFB_Hallmark_results.rda")
+```
+
+##Barplot of -10*log10 for TGF_BETA_SIGNALING pathway
+```{r}
+#Create vector of dataframe names and pattern names used for plotting
+resultsFiles <- c("resultfiltered_P10","resultfiltered_P12","resultfiltered_P14","resultfiltered_P16","resultfiltered_P20","resultfiltered_P25")
+nPatterns <- c("nPatterns=10","nPatterns=12","nPatterns=14","nPatterns=16","nPatterns=20", "nPatterns=25")
+
+##save as pdf
+pdf(file="Cogaps/Whole/Figures/TGFB_Pathway_Barplots.pdf")
+
+for(i in 1:length(resultsFiles)){
+print(get(resultsFiles[i]) %>% 
+    ## Reorders the barplots
+    mutate(Pattern=fct_reorder(Pattern, desc(padj) )) %>%
+    ggplot(aes_string(y = "-10*log10(padj)", x = "Pattern", fill = "Pattern")) +
+    ## Specifies barplot
+    geom_col() +
+    ## Flips the coordinates
+    coord_flip() +
+    ## Makes the background white
+    theme_minimal() +
+    ## Add title
+    ggtitle(paste0("Hallmark TGFB Pathway (", nPatterns[i], ")")) +
+    ## This creates the dotted line at .05 value 
+    geom_hline(yintercept=c(13.0103), linetype="dotted") + # Add veritcle line to show significances
+    ## Adds the q values
+    geom_text(aes(label=padj), hjust = -.04) +
+    ## Removes legend
+    theme(legend.position = "none") +
+    ## specifies limits 
+    ylim(0, 200))
+}
+
+dev.off()
+```
+

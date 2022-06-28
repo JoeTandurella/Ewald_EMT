@@ -1,0 +1,157 @@
+---
+title: "ClusteringAfterBatchCorrection"
+author: "Gaurav"
+date: "2/25/2020"
+output: html_document
+---
+
+```{r setup}
+library(monocle3)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+```
+### Read data
+```{r}
+expression_matrix <- readMM('../data/dataMatrixClean.mtx')
+cell_metadata <- read.csv('../data/obsClean.csv')
+rownames(cell_metadata) <- cell_metadata$index
+gene_annotation <- read.csv('../data/varClean.csv')
+rownames(gene_annotation) <- gene_annotation$index
+colnames(gene_annotation)[1] <- 'gene_short_name'
+```
+
+
+```{r}
+cell_metadata['mouse-day'] <- paste(cell_metadata$mouse, cell_metadata$day,sep = '-')
+cds <- new_cell_data_set(t(expression_matrix),
+                         cell_metadata = cell_metadata,
+                         gene_metadata = gene_annotation)
+```
+
+```{r}
+saveRDS(cds,'../intermediateData/cdsBasic.RDS')
+```
+
+
+```{r}
+# preprocess_cds method uses log normalization after count recalculation using an estimated size factor
+cds <- preprocess_cds(cds, num_dim = 50)
+```
+
+```{r run=F}
+norm_counts <- normalized_counts(cds)
+writeMM(norm_counts,'../data/normalizedMatrix.mtx')
+```
+
+```{r}
+plot_pc_variance_explained(cds)
+```
+
+```{r}
+cds <- reduce_dimension(cds)
+```
+Save preprocessed data
+```{r}
+saveRDS(cds,'../intermediateData/cdsNormalizedDimReduced.rds')
+```
+
+```{r}
+categories <- colnames(cell_metadata)[4:9]
+colorPlots <- function(cds,categories,method="UMAP",name='umap') 
+for(cat in categories){
+plt <- plot_cells(cds,color_cells_by = cat,label_cell_groups = F,alpha = 0.8,reduction_method = method)
+print(plt)
+filename = paste0('../figures/monocle/',name,cat,'.png')
+png(filename = filename,width = 4,height = 4,units = 'in',res = 100)
+print(plt)
+dev.off()
+}
+```
+```{r}
+geneList <- read.csv('../geneList.csv',header = F,stringsAsFactors = F)
+geneList$V1[1] = 'Krt5'
+png('../figures/monocle/umap_EMTgenes.png',height = 10,width = 12,units = 'in',res = 100)
+plot_cells(cds,genes = geneList$V1)
+dev.off()
+```
+```{r}
+cds <- reduce_dimension(cds, reduction_method="tSNE")
+for(cat in categories){
+plt <- plot_cells(cds,reduction_method = 'tSNE',color_cells_by = cat,label_cell_groups = F,alpha = 0.8)
+print(plt)
+filename = paste0('../figures/monocle/tSNEBy',cat,'.png')
+png(filename = filename,width = 4,height = 4,units = 'in',res = 100)
+print(plt)
+dev.off()
+}
+```
+
+```{r}
+cds = align_cds(cds, num_dim = 50, alignment_group = "day")
+cds = reduce_dimension(cds)
+plot_cells(cds, color_cells_by="mouse_day", label_cell_groups=FALSE)
+```
+```{r}
+colorPlots(categories,method = 'UMAP',name='umapDayCorrected')
+```
+```{r}
+png('../figures/monocle/umap_dayCorrectedEMTgenes.png',height = 10,width = 12,units = 'in',res = 100)
+plot_cells(cds,genes = geneList$V1)
+dev.off()
+```
+```{r}
+saveRDS(cds,'../intermediateData/cdsDayCorrected.RDS')
+```
+
+```{r}
+em <- as.matrix(expression_matrix)
+emtGeneCols <- gene_annotation$index %in%  geneList$V1
+em <- em[,emtGeneCols]
+colnames(em) <- gene_annotation$index[emtGeneCols]
+png('../figures/monocle/geneCorrelation.png',height = 7,width = 7,units = 'in',res = 100)
+pheatmap(cor(em))
+dev.off()
+```
+
+```{r}
+colData(cds)['media-day'] <- paste0(colData(cds)[,'media'],'-', colData(cds)[,'day'])
+cds <- cds[,!is.na(colData(cds)$media)]
+plot_cells(cds[,colData(cds)$media == 'Collagen'],color_cells_by = 'media-day',label_cell_groups = F,alpha = 0.8)
+plot_cells(cds[,colData(cds)$media == 'Matrigel'],color_cells_by = 'media-day',label_cell_groups = F,alpha = 0.8)
+```
+
+### Correct wrt mouse
+```{r}
+cds = align_cds(cds, num_dim = 50, alignment_group = "mouse")
+cds = reduce_dimension(cds)
+plot_cells(cds, color_cells_by="mouse-day", label_cell_groups=FALSE)
+```
+To see effect on cell lines on different days
+```{r}
+plot_cells(cds[,pData(cds)$mouse=='cell line'], color_cells_by="mouse-day", label_cell_groups=FALSE)
+```
+Cell lines clustering separtely when corrected by mouse
+```{r warning=FALSE}
+colorPlots(categories,method = 'UMAP',name='umapMouseCorrected')
+```
+Correct for both mouse and day
+```{r}
+cds = align_cds(cds, num_dim = 50, residual_model_formula_str = " ~ mouse + day")
+cds = reduce_dimension(cds)
+colorPlots(categories,method = 'UMAP',name='umapMouseDayCorrected')
+```
+```{r}
+plot_cells(cds[,pData(cds)$mouse=='cell line'], color_cells_by="mouse-day", label_cell_groups=FALSE)
+```
+Cell lines clustering separately if corrected for both mouse and day
+
+### Try regressing out effect of n_counts and pcent_mito
+```{r}
+cds = readRDS('../intermediateData/cdsNormalizedDimReduced.rds')
+cds = align_cds(cds, num_dim = 50, residual_model_formula_str = " ~ percent_mito + n_counts + day")
+cds = reduce_dimension(cds)
+plot_cells(cds, color_cells_by="mouse-day", label_cell_groups=FALSE)
+colorPlots(categories,method = 'UMAP',name='umapPcentMitoCountsDayCorrected')
+```
+

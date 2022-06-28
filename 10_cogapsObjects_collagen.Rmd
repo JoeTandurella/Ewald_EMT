@@ -1,0 +1,82 @@
+---
+title: "EMT single cell collagen analysis - cogapsObjects"
+author: "Melanie"
+date: "6/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries}
+library(CoGAPS)
+library(Matrix)
+library(dplyr)
+sessionInfo()
+```
+
+```{r}
+# Load the data-----
+# Read in the data
+mat <- readRDS("Cogaps/Whole/countsCDSCoGAPS.rds")
+
+# Prepare the data----
+dim(mat)
+# Remove MT- and RP genes
+mat <- mat[grep("Mt-|^Rp", rownames(mat), invert = TRUE), ]
+# Remove cells with no signal
+mat <- mat[, apply(mat, 2, max) > 0]
+# Remove genes with no signal/constant signal
+mat <- mat[apply(mat, 1, sd) > 0, ]
+# Log transform based on the counts data being whole numbers 
+mat <- log2(mat+1)
+# Check min of transformed data
+min(mat)
+# Recheck the dim
+dim(mat)
+```
+
+```{r createCogapsObject}
+# Create the CoGAPS objects for all genes----
+# Get gene and sample names
+geneNames<- rownames(mat)
+sampleNames<- colnames(mat)
+# Create the params object for running cogaps
+params <- new("CogapsParams")
+params <- CogapsParams(
+  sparseOptimization = TRUE,
+  nPatterns = 5,
+  seed = 367,
+  geneNames = geneNames,
+  sampleNames = sampleNames,
+  nIterations = 50000,
+  distributed = "genome-wide"
+)
+# Update the sets for the object
+params <- setDistributedParams(params, nSets = 5)
+# Make the matrix a spare matrix
+sparse.mat <- Matrix(mat, sparse = T)
+# Check params object
+params
+# Save objects
+# Save the matrix object
+writeMM(obj = sparse.mat, file = "Cogaps/Whole/emtMat.mtx")
+```
+
+## Adapt Mel's previous Params Obj.
+```{r}
+##Open premade CoGAPS Params Obj and make it match the one created above
+melParams <- readRDS("emtParams (2).rds")
+melParams@geneNames <- geneNames
+melParams@sampleNames <- sampleNames
+melParams@distributed <- "genome-wide"
+melParams@nSets <- 5
+melParams@cut <- 5
+melParams@nPatterns <- 5
+melParams@minNS <- 3
+melParams@maxNS <- 8
+saveRDS(melParams, file="Cogaps/Whole/emtParams.rds")
+```
+```
+

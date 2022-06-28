@@ -1,0 +1,52 @@
+---
+title: "Add Cell Cycle"
+author: "Melanie"
+date: "7/13/2021"
+output: html_document
+---
+
+Script to add cell cycle stage to CDS. Cell cycle from scanpy 
+
+```{r libraries}
+library(monocle3)
+sessionInfo()
+```
+
+```{r loadData}
+## Load the cds
+load("EJFPsuedotimeResults2Mar2020.Rda")
+
+## Load the csv with cell cycle info
+metaData <- read.csv(file = "obs.csv")
+## Add rownames to the metadata
+rownames(metaData) <- metaData$index
+```
+
+```{r addData}
+## Add the S_score
+colData(cdsNorm)$S_score <- metaData[colnames(cdsNorm), 'S_score']
+colData(cdsNormCollagen)$S_score <- metaData[colnames(cdsNormCollagen), 'S_score']
+colData(cdsNormMatrigel)$S_score <- metaData[colnames(cdsNormMatrigel), 'S_score']
+
+## Add the G2M_Score
+colData(cdsNorm)$G2M_score <- metaData[colnames(cdsNorm), 'G2M_score']
+colData(cdsNormCollagen)$G2M_score <- metaData[colnames(cdsNormCollagen), 'G2M_score']
+colData(cdsNormMatrigel)$G2M_score <- metaData[colnames(cdsNormMatrigel), 'G2M_score']
+
+## Add the phase
+colData(cdsNorm)$phase <- metaData[colnames(cdsNorm), 'phase']
+colData(cdsNormCollagen)$phase <- metaData[colnames(cdsNormCollagen), 'phase']
+colData(cdsNormMatrigel)$phase <- metaData[colnames(cdsNormMatrigel), 'phase']
+```
+
+```{r plotData}
+plot_cells(cdsNorm, color_cells_by = "phase", label_cell_groups = FALSE)
+
+plot_cells(cdsNormCollagen, color_cells_by = "phase")
+
+plot_cells(cdsNormMatrigel, color_cells_by = "phase")
+```
+```{r saveData}
+save(cdsNorm, cdsNormCollagen, cdsNormMatrigel, file = "cellCycle_EJFPsuedotimeResults2Mar2020.Rda")
+```
+

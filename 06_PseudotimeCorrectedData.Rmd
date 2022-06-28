@@ -1,0 +1,69 @@
+---
+title: "Pseudotime"
+author: "Gaurav"
+date: "2/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(monocle3)
+library(pheatmap)
+```
+## Load the data
+```{r}
+cds <- readRDS('../intermediateData/cdsDayCorrected.RDS')
+# add media-day annotation
+colData(cds)['media-day'] <- paste0(colData(cds)[,'media'],'-', colData(cds)[,'day'])
+# Remove Cell lines
+cds <- cds[,!is.na(colData(cds)$media)]
+# Separate Matrigel and Collagen
+cdsMatrigel <- cds[,colData(cds)$media == 'Matrigel']
+cdsCollagen <- cds[,colData(cds)$media == 'Collagen']
+```
+
+```{r}
+#cdsMatrigel <- reduce_dimension(cdsMatrigel)
+#cdsCollagen <- reduce_dimension(cdsCollagen)
+# Cluster datasets
+cdsMatrigel <- cluster_cells(cdsMatrigel)
+pData(cdsMatrigel)$cluster <- as.character(clusters(cdsMatrigel))
+cdsCollagen <- cluster_cells(cdsCollagen)
+pData(cdsCollagen)$cluster <- as.character(clusters(cdsCollagen))
+
+cdsMatrigel <- learn_graph(cdsMatrigel)
+cdsCollagen <- learn_graph(cdsCollagen)
+
+cdsCollagen <- order_cells(cdsCollagen,reduction_method = "UMAP")
+cdsMatrigel <- order_cells(cdsMatrigel,reduction_method = "UMAP")
+```
+
+```{r}
+
+
+plot_cells(cdsCollagenMain,color_cells_by = 'media-day',label_cell_groups = F,alpha = 0.8)
+plot_cells(cdsMatrigel,color_cells_by = 'media-day',label_cell_groups = F,alpha = 0.8)
+```
+```{r}
+cdsCollagenMain <- cdsCollagen[,(pData(cdsCollagen)$cluster %in% c(1,2))]
+cdsCollagenMain <- cluster_cells(cdsCollagenMain)
+cdsCollagenMain <- learn_graph(cdsCollagenMain)
+cdsCollagenMain <- order_cells(cdsCollagenMain,reduction_method = "UMAP")
+plot_cells(cdsCollagenMain,color_cells_by = 'pseudotime',label_cell_groups = F,alpha = 0.8)
+```
+
+```{r}
+geneList <- read.csv('../geneList.csv',header = F,stringsAsFactors = F)
+geneList$V1[1] = 'Krt5'
+png('../figures/monocle/umap_DayCorrectedCollagenMainEMTgenes.png',height = 10,width = 12,units = 'in',res = 100)
+plot_cells(cdsCollagenMain,genes = geneList$V1)
+dev.off()
+```
+```{r}
+cdsCollagenMainEM <- cdsCollagenMain[fData(cdsCollagenMain)$index %in% geneList$V1,]
+emGenes <- exprs(cdsCollagenMainEM)
+pheatmap(emGenes)
+```
+```{r}
+plot_genes_in_pseudotime(cdsCollagenMainEM)
+```
+

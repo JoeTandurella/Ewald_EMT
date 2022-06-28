@@ -1,0 +1,681 @@
+---
+title: "Final Figures"
+author: "Melanie and Joe Tandurella"
+date: "7/13/2021"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries}
+library(monocle3)
+library(CoGAPS)
+library(ggplot2)
+library(dplyr)
+library('ComplexHeatmap')
+library(forcats)
+library(knitr)
+library(readxl)
+library(Matrix)
+sessionInfo()
+```
+
+```{r loadData}
+## Load the cds objects
+load("data/cellCycle_EJFPsuedotimeResults2Mar2020.Rda")
+## Load the Whole Genome CoGAPS 14 Pattern Result
+cogapsRes <- readRDS("Cogaps/Whole/gwCogapsRes/EMT_Ewald_AllGenes_P14.rds")
+## Load the pathways results for the emt pathway
+load(file = "Cogaps/Whole/EMT_Hallmark_results.Rda")
+emtPatterns <- resultfiltered_P14
+## Load the pathways results for the G2M pathway
+load(file = "Cogaps/Whole/G2M_Hallmark_results.Rda")
+G2MPatterns <- resultfiltered_P14
+## Load the pathways results for the TGFB pathway
+load(file = "Cogaps/Whole/TGFB_Hallmark_results.Rda")
+TGFPatterns <- resultfiltered_P14
+## Load the pattern markers -- Pattern5==CellLine
+patternMarkerResults <- read.csv(file = "Cogaps/Whole/emtMarkerGenes14.csv")
+## Load the EMT genes
+emtGenes <- read_excel("data/Revision_EMTGenes.xlsx")
+emtGenes <- emtGenes[,1]
+##Load the short EMT genes
+short_emtGenes <- read_excel("Revision/short_emt_genes.xlsx")
+```
+
+## Panel A : Cell cycle
+```{r}
+## Plot the cell cycle
+pdf(file="Revision/FinalFigures/CellcycleUMAP.pdf")
+plot_cells(cdsNorm, color_cells_by = "phase", label_cell_groups = FALSE) +
+    ggtitle("Cell Cycle Phase") + facet_wrap('media')
+dev.off()
+
+table(cdsNorm$day,cdsNorm$media)
+```
+
+## Panel B: Day
+```{r}
+## Plot the cell cycle
+pdf(file="Revision/FinalFigures/DayUMAP.pdf")
+plot_cells(cdsNorm, color_cells_by = "day", label_cell_groups = FALSE) +
+    ggtitle("Day") + facet_wrap('media')
+dev.off()
+```
+
+## Panel C : Violin plots of Cdh1 / Vim by cell cycle state
+```{r violinPlot}
+## Violin plot
+## Subset to Vim and CDH1
+cdsSubset.vim <- cdsNorm[rowData(cdsNorm)$gene_short_name %in% "Vim" , ]
+cdsSubset.cdh1 <- cdsNorm[rowData(cdsNorm)$gene_short_name %in% "Cdh1", ]
+
+pdf(file="Revision/FinalFigures/Cdh1Vim_Violin.pdf")
+plot_genes_violin(cdsSubset.vim, group_cells_by = "phase", ncol = 2) + facet_wrap('media') + labs(title= "Vim")
+plot_genes_violin(cdsSubset.cdh1, group_cells_by = "phase", ncol = 2) + facet_wrap('media') + labs(title= "Cdh1")
+dev.off()
+
+table(cdsSubset.vim$day,cdsSubset.vim$media)
+table(cdsSubset.cdh1$day,cdsSubset.cdh1$media)
+
+```
+
+## Panel D : Barplots of -10*log10(p values) for the hallmark EMT, G2M, TFGB pathways
+```{r}
+pdf(file = "Revision/FinalFigures/n14_PathwayBarcharts.pdf")
+
+## Make barplot for the hallmark emt pathway----
+emtPatterns %>% 
+    ## Reorders the barplots
+    mutate(Pattern=fct_reorder(Pattern, desc(padj) )) %>%
+    ggplot(aes_string(y = "-10*log10(padj)", x = "Pattern", fill = "Pattern")) +
+    ## Specifies barplot
+    geom_col() +
+    ## Flips the coordinates
+    coord_flip() +
+    ## Makes the background white
+    theme_minimal() +
+    ## Add title
+    ggtitle("Hallmark EMT Pathway Whole Genome nPattern=14") +
+    ## This creates the dotted line at .05 value 
+    geom_hline(yintercept=c(13.0103), linetype="dotted") + # Add veritcle line to show significances
+    ## Adds the q values
+    geom_text(aes(label=padj), hjust = -.04) +
+    ## Removes legend
+    theme(legend.position = "none") +
+    ## specifies limits 
+    ylim(0, 450)
+
+## Make barplot for the hallmark G2M pathway----
+
+G2MPatterns %>% 
+    ## Reorders the barplots
+    mutate(Pattern=fct_reorder(Pattern, desc(padj) )) %>%
+    ggplot(aes_string(y = "-10*log10(padj)", x = "Pattern", fill = "Pattern")) +
+    ## Specifies barplot
+    geom_col() +
+    ## Flips the coordinates
+    coord_flip() +
+    ## Makes the background white
+    theme_minimal() +
+    ## Add title
+    ggtitle("Hallmark G2M Pathway Whole Genome nPattern=14") +
+    ## This creates the dotted line at .05 value 
+    geom_hline(yintercept=c(13.0103), linetype="dotted") + # Add veritcle line to show significances
+    ## Adds the q values
+    geom_text(aes(label=padj), hjust = -.04) +
+    ## Removes legend
+    theme(legend.position = "none") +
+    ## specifies limits 
+    ylim(0, 1000)
+
+## Make barplot for the hallmark TFGB pathway----
+
+TGFPatterns %>% 
+     mutate(Pattern=fct_reorder(Pattern, desc(padj) )) %>%
+    ggplot(aes_string(y = "-10*log10(padj)", x = "Pattern", fill = "Pattern")) +
+    ## Specifies barplot
+    geom_col() +
+    ## Flips the coordinates
+    coord_flip() +
+    ## Makes the background white
+    theme_minimal() +
+    ## Add title
+    ggtitle("Hallmark TGFB Pathway Whole Genome nPattern=14") +
+    ## This creates the dotted line at .05 value 
+    geom_hline(yintercept=c(13.0103), linetype="dotted") + # Add veritcle line to show significances
+    ## Adds the q values
+    geom_text(aes(label=padj), hjust = -.04) +
+    ## Removes legend
+    theme(legend.position = "none") +
+    ## specifies limits 
+    ylim(0, 200)
+
+dev.off()
+```
+
+## Panel E : Heatmap with * added to the heatmap if it's a pattern marker gene 
+```{r, fig.height=6, fig.width=8}
+## Heatmap of the amplitude matrix ----
+## Extract the amplitude matrix while extracting the EMT patterns
+amplitude <- cogapsRes@featureLoadings[rownames(cogapsRes@featureLoadings) %in% short_emtGenes$Genes, 
+    colnames(cogapsRes@featureLoadings) %in% c("Pattern_4","Pattern_15","Pattern_1", "Pattern_3")]
+## Reorder the scaledmat
+amplitude <- amplitude[, c("Pattern_4","Pattern_15","Pattern_1", "Pattern_3")]
+## Scale and center the data
+scaledmat<- t(apply(amplitude, 1, scale))
+
+## Reassign the column names
+colnames(scaledmat) <- colnames(amplitude)
+
+##Pull out names of high expressers
+write.csv(scaledmat, file = "Cogaps/Whole/short_emtGenes_amplitudematrix.csv", na = "")
+  
+## Add * if the gene is a pattern marker for 
+## initalize an empty matrix
+small_mat <- matrix("", nrow = nrow(scaledmat), ncol= ncol(scaledmat))
+## Add row andcolumn names to matrix
+rownames(small_mat) <- rownames(scaledmat)
+colnames(small_mat) <- colnames(scaledmat)
+
+
+
+## Add * if the gene is pattern marker
+for (i in rownames(small_mat)){
+    for(j in colnames(small_mat)){
+        if( paste0(i) %in% patternMarkerResults[,paste0(j)]) {
+            small_mat[paste(i), paste0(j)] <- "*"
+        }
+    }
+}
+
+
+## Create the heatmap
+pdf(file = "Revision/FinalFigures/n14_AmplitudeHeatmap_SHORTLIST.pdf")
+
+Heatmap(t(scaledmat), name = "Amplitude",cluster_columns = TRUE,
+        show_row_dend = FALSE, 
+        show_column_dend = FALSE,
+        cluster_rows = FALSE,
+        row_names_side = "left",
+        column_names_side = "bottom",
+        column_names_rot = 45,
+        row_names_gp = gpar(fontsize = 5),
+        column_names_gp = gpar(fontsize = 3),
+        column_title = "Amplitude Heatmap of EMT Genes (nPattern = 14)",
+        cell_fun = function(j, i, x, y, width, height, fill) {
+        grid.text(sprintf(small_mat[j, i]), x, y, gp = gpar(fontsize = 5))
+})
+
+dev.off()
+
+
+```
+
+##Violin plots of Pattern Marker genes by classification (EMT Genes w/ star from heatmap)
+```{r}
+genes <- rownames(small_mat)
+
+pdf(file="Revision/FinalFigures/EMTGenes_ClassificationViolin.pdf")
+genes <- rownames(small_mat)
+subsetexprs <- t(counts(cdsNorm))
+subsetexprs <- as.data.frame(as.matrix(subsetexprs[,colnames(subsetexprs) %in% genes]))
+subsetexprs <- cbind(subsetexprs, pData(cdsNorm)$Classification)
+colnames(subsetexprs)[48] <- "Classification"
+
+for(i in 1:length(genes)){
+ggplot(subsetexprs, aes(x=Classification,y=subsetexprs[,1])) + geom_violin() + labs(title=colnames(subsetexprs)[1], y="Expression") + stat_compare_means() + stat_compare_means(comparisons=list(c("Cdh1 Positive","Double Negative"), c("Cdh1 Positive","Double Positive"),c("Cdh1 Positive","Vim Positive"),c("Double Negative","Double Positive"), c("Double Negative","Vim Positive"),c("Double Positive","Vim Positive"), method="wilcox"))
+}
+
+dev.off()
+
+```
+
+
+## Panel F : UMAPS colored by pattern weights for patterns 5, 8, 14, and 18 
+```{r}
+## Create the pattern umaps ----
+cdsNorm@colData <- cbind(colData(cdsNorm), cogapsRes@sampleFactors[colnames(cdsNorm), ])
+
+pdf(file="Revision/FinalFigures/n14PatternWeightUMAPS_media.pdf")
+
+for (i in 16:30){
+print(plot_cells(cdsNorm, color_cells_by = colnames(colData(cdsNorm)[i]), label_cell_groups = FALSE, show_trajectory_graph = FALSE)+ facet_wrap('media'))
+}
+
+dev.off()
+```
+
+
+## Panel G : Show percentage of cells in each pattern -- Done w/ cdsNormCollagen and cdsNormMatrigel
+```{r}
+## Subset the cogaps results to the specific patterns
+## Duplicate the result to manipulate 
+filteredCogaps <- cogapsRes
+## Eliminate the cell line patterns
+#filteredCogaps@sampleFactors <- filteredCogaps@sampleFactors[, !colnames(filteredCogaps@sampleFactors) %in% "Pattern_5"]
+## Run the pattern marker statistic on the cells 
+cellPatternMarker <- patternMarkers(filteredCogaps, axis = 2)
+## Add the pattern to the cell marker result
+for(i in 1:length(cellPatternMarker$PatternMarkers)){
+    ## Concert to a df
+    cellPatternMarker$PatternMarkers[[i]] <- as.data.frame(cellPatternMarker$PatternMarkers[[i]])
+    ## create column name
+    colnames(cellPatternMarker$PatternMarkers[[i]]) <- "CellID"
+    cellPatternMarker$PatternMarkers[[i]]$Pattern <- names(cellPatternMarker$PatternMarkers[i])
+}
+## Combined the tables
+cellPatternMarkerDataFrame <- do.call("rbind", cellPatternMarker$PatternMarkers)
+## Update rownames
+rownames(cellPatternMarkerDataFrame) <- cellPatternMarkerDataFrame$CellID
+
+
+## Add the pattern assignment to the cds
+##Cell Line
+cdsNormCellLine <- cdsNorm[,colData(cdsNorm)$media=="CellLine"]
+colData(cdsNormCellLine)$AssignedPattern <- cellPatternMarkerDataFrame[colnames(cdsNormCellLine), "Pattern"]
+#Collagen
+colData(cdsNormCollagen)$AssignedPattern <- cellPatternMarkerDataFrame[colnames(cdsNormCollagen), "Pattern"]
+#Matrigel
+colData(cdsNormMatrigel)$AssignedPattern <- cellPatternMarkerDataFrame[colnames(cdsNormMatrigel), "Pattern"]
+##All
+colData(cdsNorm)$AssignedPattern <- cellPatternMarkerDataFrame[colnames(cdsNorm), "Pattern"]
+```
+
+##Making the UMAPs, Barplots and Tables
+```{r}
+## Plot the data
+pdf(file="Revision/FinalFigures/PatternAssignment_AllPatterns_CellLine.pdf")
+plot_cells(cdsNormCellLine, color_cells_by = "AssignedPattern", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + facet_wrap('media')
+## Show pattern 4, 15, 1, and 3 only
+plot_cells(cdsNormCellLine, color_cells_by = "AssignedPattern", label_cell_groups = FALSE, show_trajectory_graph = FALSE) +scale_color_manual(values = c("blue","gray80","gray80","gray80","gray80","gray80", "yellow","gray80","red","black","gray80", "gray80","gray80","gray80","gray80")) + facet_wrap('media')
+
+# Generate a table which counts cells assigned to each pattern
+countsTable <- table(colData(cdsNormCellLine)$AssignedPattern)
+## make a proportion table with the counts table
+propTable <- as.data.frame(prop.table(countsTable))
+## round the proportions
+propTable$Freq <- round(propTable$Freq, digits = 4)
+## Merge the two tables
+combinedTable <- merge(as.data.frame(countsTable), propTable, by = "Var1")
+## Rename columns
+colnames(combinedTable) <- c("Pattern", "Number of Cells in Pattern", "Proportion of Cells in Pattern")
+## Create table
+kable(combinedTable)
+
+## Create object of all pattern names
+patternList<- paste0("Pattern_",(seq(1,15)))
+
+##Table of patterns x day
+kable(sapply(levels(colData(cdsNormCellLine)$day),function(d) (table(c(colData(cdsNormCellLine)$AssignedPattern[colData(cdsNormCellLine)$day == d],patternList))-array(1,5))/sum(colData(cdsNormCellLine)$day == d)*100))
+
+##Dataframe of patterns x day
+Pattern.day.df <- as.table(sapply(levels(colData(cdsNormCellLine)$day),function(d) (table(c(colData(cdsNormCellLine)$AssignedPattern[colData(cdsNormCellLine)$day == d],patternList))-array(1,15))/sum(colData(cdsNormCellLine)$day == d)*100))
+colnames(Pattern.day.df) <- c("D0","D3","D5")
+
+##Subset dataframe of EMT patterns x day
+Pattern.day.sub <- rbind(Pattern.day.df[1,],Pattern.day.df[7,],Pattern.day.df[9,],Pattern.day.df[10,])
+rownames(Pattern.day.sub) <- c("Pattern_1","Pattern_15","Pattern_3","Pattern_4")
+
+##Table of EMT patterns x day
+kable(Pattern.day.sub)
+
+
+# Stacked Bar Plot -- pattern by day
+par(mar=c(6, 5, 3, 10))
+barplot(Pattern.day.df, main="Pattern Weight Distribution by Day - WholeGenome_P14 - CellLine",
+ col=c("darkblue","red","yellow","green","orange","purple","pink","darkgrey","cyan","coral","deepskyblue4","aquamarine","brown3","darkgreen","darkkhaki","chocolate4","cadetblue", "olivedrab3", "slategray1"), xlab="Day", density = c(30,100,100,100,100,100,30,100,30,30,100,100,100,100,100), angle = c(45,0,0,0,0,0,45,0,45,45,0,0,0,0),
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+
+par(mar=c(6, 9, 3, 10))
+barplot(Pattern.day.sub, main="EMT Pattern Weight Distribution by Day - WholeGenome_P14 - CellLine",
+ col=c("orange","cyan","brown3","chocolate4"), xlab="Day",
+  legend.text = TRUE,
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+
+dev.off()
+
+## Add table for number of cells in each Pattern per media --CDSNORM
+kable(sapply(unique(colData(cdsNorm)$media),function(m) (table(c(colData(cdsNorm)$AssignedPattern[colData(cdsNorm)$media == m],patternList))-array(1,15))/sum(colData(cdsNorm)$media == m)*100))
+
+
+Pattern.media.df <- as.table(sapply(unique(colData(cdsNorm)$media),function(m) (table(c(colData(cdsNorm)$AssignedPattern[colData(cdsNorm)$media == m],patternList))-array(1,15))/sum(colData(cdsNorm)$media == m)*100))
+
+
+# Stacked Bar Plot -- pattern by media
+pdf(file="Revision/FinalFigures/PatternAssignmentbyMedia_AllPatterns_AllMedia.pdf")
+
+par(mar=c(3, 5, 3, 10))
+barplot(Pattern.media.df, main="Pattern Weight Distribution by Media - WholeGenome_P14",
+  xlab="Media", col=c("darkblue","red","yellow","green","orange","purple","pink","darkgrey","cyan","coral","deepskyblue4","aquamarine","brown3","darkgreen","darkkhaki","chocolate4","cadetblue", "olivedrab3", "slategray1"), density = c(30,100,100,100,100,100,30,100,30,30,100,100,100,100,100), angle = c(45,0,0,0,0,0,45,0,45,45,0,0,0,0),
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+
+dev.off()
+```
+```
+
+```{r}
+## Make umaps for the gene's in gene list
+#pdf(file="finalfigures_corrected/emtGeneUMAPS.pdf")
+# for (i in 1:length(emtGenes)){
+#     print(plot_cells(cdsNorm, genes = paste0(emtGenes[i]))+ facet_wrap('media') + labs(title=paste0(emtGenes[i])) + theme(plot.title = element_text(hjust = 0.5)))
+# }
+#dev.off()
+
+# pdf(file="~/Documents/Hopkins/Eswald/EMT_Ewald-main/finalfigures_corrected/ITGB4_CD44_UMAPS.pdf")
+# plot_cells(cdsNorm, genes = "Itgb4")+ facet_wrap('media') + labs(title="Itgb4") + theme(plot.title = element_text(hjust = 0.5))
+# plot_cells(cdsNorm, genes = "Cd44")+ facet_wrap('media') + labs(title="Cd44") + theme(plot.title = element_text(hjust = 0.5))
+# dev.off()
+
+genesofinterest <- c("Efhd2","Rab21","Arf1","Baiap2","Arhgap26","Ankrd27")
+pdf(file="~/Documents/Hopkins/Eswald/EMT_Ewald-main/finalfigures_corrected/102921_GeneUMAPS.pdf")
+ for (i in 1:length(genesofinterest)){
+     print(plot_cells(cdsNorm, genes = paste0(genesofinterest[i]))+ facet_wrap('media') + labs(title=paste0(genesofinterest[i])) + theme(plot.title = element_text(hjust = 0.5)))
+ }
+dev.off()
+
+```
+
+## Panel H(a) : UMAP Showing Vim and Cdh1 positive/negative cells -- repeated for CDSNormCollagen,Matrigel,CellLine
+```{r}
+## Subset the cds p data to Vim and Cdh1
+countsDataFrame <- as.data.frame(as.matrix(counts(cdsNorm)))
+countsSubset <- t(countsDataFrame[rownames(countsDataFrame) %in% c("Vim", "Cdh1"), ])
+## Classify by expression of the genes of interst
+classifiedCounts <- as.data.frame(countsSubset) %>%
+    mutate(classification = ifelse(Vim > 0 & Cdh1 > 0, "Double Positive",
+                                   ifelse(Vim > 0 & Cdh1 == 0, "Vim Positive",
+                                   ifelse(Vim == 0 & Cdh1 > 0, "Cdh1 Positive",
+                                   "Double Negative"))))
+## Add the classification to the cds
+colData(cdsNorm)$Classification <- classifiedCounts[colnames(cdsNorm), "classification"]
+
+## Plot the classification
+pdf(file="../finalfigures_corrected/VimPOS_cdh1POS_MatrigelUMAPS.pdf")
+
+# plot_cells(cdsNormCollagen, color_cells_by = "Classification", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + scale_color_manual(values = c("cadetblue2","gray50","purple","orange")) + facet_wrap('media')
+
+## Add table for the number of cells in each classification
+## Create table
+kable(table(colData(cdsNormCellLine)$Classification))
+
+## Add table for number of cells in each Pattern per day
+classList<- c("Cdh1 Positive", "Double Negative", "Double Positive", "Vim Positive")
+
+##Dataframe of % Classification/Day
+Pattern.day.df <- as.table(sapply(unique(colData(cdsNormCellLine)$day),function(d) (table(c(colData(cdsNormCellLine)$Classification[colData(cdsNormCellLine)$day == d],classList))-array(1,4))/sum(colData(cdsNormCellLine)$day == d)*100))
+colnames(Pattern.day.df) <- c("D0","D3","D5")
+
+##Dataframe of %Classification/Pattern
+Pattern.Classification.df <- as.table(sapply(unique(colData(cdsNormCellLine)$AssignedPattern),function(c) (table(c(colData(cdsNormCellLine)$Classification[colData(cdsNormCellLine)$AssignedPattern == c],classList))-array(1,4))/sum(colData(cdsNormCellLine)$AssignedPattern == c)*100))
+
+##Print table of each
+kable(Pattern.day.df)
+kable(t(Pattern.Classification.df))
+
+##Subset dataframe of EMT patterns x day
+Pattern.Classification.sub <- cbind(Pattern.Classification.df[,3],Pattern.Classification.df[,7],Pattern.Classification.df[,11],Pattern.Classification.df[,13])
+colnames(Pattern.Classification.sub) <- c("Pattern_3","Pattern_15","Pattern_4","Pattern_1")
+
+##Table of EMT patterns x day
+kable(Pattern.Classification.sub)
+
+pdf(file="Revision/FinalFigures/PatternAssignmentbyClassification_andDay_CellLine.pdf")
+# Stacked Bar Plot -- pattern by day
+par(mar=c(3, 5, 5, 10))
+barplot(Pattern.day.df, main="Pattern Weight Distribution by Day - WholeCDS_P20 - CellLine",
+  xlab="Day", ylab="Percent Classification", col=c("darkblue","red","yellow","green"),
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+
+# Stacked Bar Plot -- pattern by Classification -- ALL Patterns
+par(mar=c(3, 5, 5, 10))
+barplot(Pattern.Classification.df, main="Pattern Weight Distribution by Classification - WholeGenome_nPattern14 - CellLine",
+  xlab="Pattern", ylab="Percent Classification", col=c("orange","cyan","brown3","chocolate4"), xaxt='n',
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+## Draw x-axis without labels.
+axis(side = 1, labels = FALSE)
+
+## Draw the x-axis labels.
+text(x = 1:length(colnames(Pattern.Classification.df)),
+     ## Move labels to just below bottom of chart.
+     y = par("usr")[3]-0.45,
+     ## Use names from the data list.
+     labels = colnames(Pattern.Classification.df),
+     ## Change the clipping region.
+     xpd = NA,
+     ## Rotate the labels by 35 degrees.
+     srt = 35,
+     ## Adjust the labels to almost 100% right-justified.
+     adj = 0.965,
+     ## Increase label size.
+     cex = .75)
+
+# Stacked Bar Plot -- pattern by Classification -- EMT Patterns ONLY
+par(mar=c(3, 5, 5, 10))
+barplot(Pattern.Classification.sub, main="Pattern Weight Distribution by Classification - WholeGenome_nPattern14_EMT_ONLY - Matrigel",
+  xlab="Pattern", ylab="Percent Classification", col=c("orange","cyan","brown3","chocolate4"), xaxt='n',
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+## Draw x-axis without labels.
+axis(side = 1, labels = FALSE)
+
+## Draw the x-axis labels.
+text(x = 1:length(colnames(Pattern.Classification.sub)),
+     ## Move labels to just below bottom of chart.
+     y = par("usr")[3]-0.45,
+     ## Use names from the data list.
+     labels = colnames(Pattern.Classification.sub),
+     ## Change the clipping region.
+     xpd = NA,
+     ## Rotate the labels by 35 degrees.
+     srt = 35,
+     ## Adjust the labels to almost 100% right-justified.
+     adj = 0.965,
+     ## Increase label size.
+     cex = .75)
+
+dev.off()
+
+```
+
+## Panel H(b) : UMAP Showing Vim and Cdh1 positive/negative cells -- cdsNORM
+```{r}
+## Add table for number of cells in each Pattern per media -- cdsNorm
+kable(sapply(unique(colData(cdsNormCellLine)$media),function(m) (table(c(colData(cdsNormCellLine)$Classification[colData(cdsNormCellLine)$media == m],classList))-array(1,4))/sum(colData(cdsNormCellLine)$media == m)*100))
+
+Pattern.media.df <- as.table(sapply(unique(colData(cdsNormCellLine)$media),function(m) (table(c(colData(cdsNormCellLine)$Classification[colData(cdsNormCellLine)$media == m],classList))-array(1,4))/sum(colData(cdsNormCellLine)$media == m)*100))
+
+
+# Stacked Bar Plot -- pattern by media
+par(mar=c(3, 5, 3, 10))
+barplot(Pattern.media.df, main="Pattern Weight Distribution by Media - WholeCDS_P20",
+  xlab="Media", col=c("darkblue","red","yellow","green"),
+  legend.text = TRUE, 
+        args.legend = list(x = "topright",
+                           inset = c(- 0.45, 0)))
+dev.off()
+```
+
+## Panel I : Gene Expression Pattern Plots *All Data*
+```{r}
+#Assigning the data
+## Extract the cogaps pattern weights
+pattern.weights <- (cogapsRes@sampleFactors[, colnames(cogapsRes@sampleFactors) %in% c("Pattern_5","Pattern_8","Pattern_18", "Pattern_14")])
+## Check the column names, dimensions and rownames
+colnames(pattern.weights)
+dim(pattern.weights)
+head(rownames(pattern.weights))
+
+##Extract day info
+day.info <- colData(cdsNorm)[, colnames(colData(cdsNorm)) == "day", drop =FALSE]
+media.info <- colData(cdsNorm)[, colnames(colData(cdsNorm)) == "media", drop=FALSE]
+
+##Extract gene expression info
+epithelialGenes <- emtGenes[c(1:6,16)]
+expression.data <- cdsNorm[rownames(cdsNorm) %in% epithelialGenes, ]
+expression.data <- t(exprs(expression.data))
+expression.data <- as.data.frame(as.matrix(log10(expression.data)))
+
+## Merge expression and day info
+mergedDayMediaExpr <- cbind(day.info, expression.data, media.info)
+
+## Merge in pattern matrix
+data <- as.data.frame(merge(mergedDayMediaExpr, pattern.weights, all.x = TRUE, by = "row.names"))
+
+
+#Test Plot with 1 gene and 1 pattern
+# ggplot(data,aes(x=(Pattern_5),y=(Vim), colour=day)) + geom_point() + labs(y="log10(Expression)",title="Vim",x="Pattern 5") + theme(axis.text = element_blank()) + geom_smooth(color='black', se=FALSE) + theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+
+#Generating pdf of Patterns
+ 
+  pdf(file = "../finalfigures_corrected/WholeCDS_Expression_Patterns.pdf")
+  
+  #Plot List
+  plot_list <- list()
+  
+  for (i in 3:9){
+    for(j in 10:13){
+    
+    print(ggplot(data,aes((data[,j]),(data[,i]),colour=day)) + geom_point() + labs(title=colnames(data[i]), x=colnames(data[j]), y="log10(Expression)") + theme(axis.text = element_blank())+ geom_smooth(color='black',se=FALSE) + theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) + facet_wrap('media'))
+
+  }
+}
+  dev.off()
+  
+```
+  
+
+## Panel J : Pattern Weights and Pseudotime *All Data*
+```{r}
+##Assigning Pattern Weight to CDS
+cdsNorm@colData <- cbind(colData(cdsNorm), cogapsRes@sampleFactors[colnames(cdsNorm), ])
+
+## Create the pattern umaps ----
+## Show pattern 5, 8, 14, and 18 only
+pdf(file="../finalfigures_corrected/PatternWeight_v_Pseudotime.pdf")
+
+## Pattern 5
+plot_cells(cdsNorm, color_cells_by = "Pattern_5", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + facet_wrap('media')
+
+## Pattern 8
+plot_cells(cdsNorm, color_cells_by = "Pattern_8", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + facet_wrap('media')
+
+## Pattern 12
+plot_cells(cdsNorm, color_cells_by = "Pattern_14", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + facet_wrap('media')
+
+## Pattern 14
+plot_cells(cdsNorm, color_cells_by = "Pattern_18", label_cell_groups = FALSE, show_trajectory_graph = FALSE) + facet_wrap('media')
+
+##Pseudotime UMAP
+plot_cells(cdsNorm,
+           color_cells_by = "pseudotime",
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=1.5, show_trajectory_graph = FALSE) + facet_wrap('media')
+
+dev.off()
+
+```
+
+## Panel K : Violin Plots of Patterns by Media and Day
+```{r}
+#Extract Pattern Weights
+pattern.weights <- (cogapsRes@sampleFactors[, colnames(cogapsRes@sampleFactors)])
+## Check the column names, dimensions and rownames
+colnames(pattern.weights)
+dim(pattern.weights)
+head(rownames(pattern.weights))
+
+##Extract day info
+day.violin <- colData(cdsNorm)[, colnames(colData(cdsNorm)) == "day", drop =FALSE]
+
+##Extract Media info
+media.violin <- colData(cdsNorm)[, colnames(colData(cdsNorm)) == "media", drop =FALSE]
+
+##Extract Classification info
+Class.violin <- colData(cdsNorm)[, colnames(colData(cdsNorm)) == "Classification", drop =FALSE]
+
+##combining data
+Pattern.day <- cbind(pattern.weights, day.violin)
+Pattern.day.media.classification <- as.data.frame(cbind(Pattern.day, media.violin,Class.violin))
+
+pdf(file='Revision/FinalFigures/AllPatternWeight_Vim_Cdh1_Violin.pdf')
+
+for(i in 1:15){
+  print(ggplot(Pattern.day.media.classification, aes(x=Classification, y=Pattern.day.media[,i])) + 
+  geom_violin() + facet_wrap('media') + labs(title = colnames(Pattern.day.media[i]), x= "Classification", y= "Pattern Weight") + theme(plot.title = element_text(hjust = 0.5))+ theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)))
+}
+dev.off()
+
+```
+
+##Pseudotime Analysis
+```{r}
+# Psuedotime analysis for Collagen
+
+cdsNormCollagen <- cluster_cells(cdsNormCollagen)
+cdsNormCollagen <- learn_graph(cdsNormCollagen)
+
+cdsNormCollagen <- order_cells(cdsNormCollagen)
+
+pdf('Revision/FinalFigures/collagen_pseudotime_umaps_24mar2022.pdf')
+plot_cells(cdsNormCollagen, color_cells_by = 'day', show_trajectory_graph = F)
+plot_cells(cdsNormCollagen, color_cells_by = 'pseudotime', show_trajectory_graph = F)
+dev.off()
+
+pdf('Revision/FinalFigures/collagen_pseudotime_EMTGenes_24mar2022.pdf')
+for(i in 1:length(short_emtGenes$Genes)){
+emt_collagensubset <- cdsNormCollagen[rownames(cdsNormCollagen) %in% short_emtGenes$Genes[i],]
+print(plot_genes_in_pseudotime(emt_collagensubset, color_cells_by = 'day'))
+}
+dev.off()
+
+# Psuedotime analysis for Matrigel
+pdf('Revision/FinalFigures/matrigel_pseudotimeumaps_24mar2024.pdf')
+plot_cells(cdsNormMatrigel, color_cells_by = 'day', show_trajectory_graph = F)
+plot_cells(cdsNormMatrigel, color_cells_by = 'pseudotime', show_trajectory_graph = F)
+dev.off()
+
+pdf('Revision/FinalFigures/matrigel_pseudotime_EMTGenes_24mar2022.pdf')
+for(i in 1:length(short_emtGenes$Genes)){
+emt_matrigelsubset <- cdsNormMatrigel[rownames(cdsNormMatrigel) %in% short_emtGenes$Genes[i],]
+print(plot_genes_in_pseudotime(emt_matrigelsubset, color_cells_by = 'day'))
+}
+dev.off()
+
+```
+
+##EMT Genes Expression Matrix Correlation heatmap
+```{r}
+expression_matrix <- t(as.matrix(exprs(cdsNorm)))
+em <- expression_matrix[,colnames(expression_matrix) %in% emtGenes$Name]
+
+pdf('Revision/FinalFigures/RevisionEMT_cdsNormexprsMat_CorelationHeatmap.pdf')
+pheatmap(cor(em))
+dev.off()
+
+
+em <- expression_matrix[,colnames(expression_matrix) %in% short_emtGenes$Genes]
+
+pdf('Revision/FinalFigures/shortenedRevisionEMT_cdsNormexprsMat_CorelationHeatmap.pdf')
+pheatmap(cor(em))
+dev.off()
+```
+
+
+
+

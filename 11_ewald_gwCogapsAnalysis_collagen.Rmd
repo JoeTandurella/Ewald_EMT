@@ -1,0 +1,128 @@
+---
+title: "Untitled"
+author: "Melanie"
+output: html_document
+---
+
+```{r libraries}
+library(monocle3)
+library(tibble)
+library(ggplot2)
+library(gridExtra)
+library(CoGAPS)
+#library('tricycle')
+sessionInfo() 
+```
+
+```{r loadData}
+# CDS object
+sbstCDSCoGAPS <- readRDS("Cogaps/Whole/CDSCoGAPS.rds")
+# CoGAPS result paths
+gwCogapsPath <- list.files(path = "Cogaps/Whole/gwCogapsRes", full.names = TRUE)
+# Read in the results
+gwCogapsRes <- lapply(gwCogapsPath, readRDS)
+# Provide names for the cogaps results, this will help with plot names
+names(gwCogapsRes) <- gsub("gwCogapsRes/|.rds", "", gwCogapsPath)
+```
+
+
+
+```{r metadataVisuals}
+# Plot the cells in CDS to visualize the umap
+plot_cells(sbstCDSCoGAPS, color_cells_by = 'batch')
+
+# Make batch categorical
+colData(sbstCDSCoGAPS)$batch <- as.factor(colData(sbstCDSCoGAPS)$batch)
+colData(sbstCDSCoGAPS)$mouseDay <- colData(sbstCDSCoGAPS)$'mouse-day' 
+pdf("Cogaps/Whole/Figures/metaData_umap.pdf")
+# Plot the meta data variables on UMAP----
+    # retrieve the metadata variables
+    metaData <- colnames(colData(sbstCDSCoGAPS))
+    # drop index as a variable
+    metaData <- metaData[!metaData %in% c("index")]
+    # Loop through the metaData and plot
+    for (i in metaData){
+        # plot the data
+        print(plot_cells(sbstCDSCoGAPS, color_cells_by = paste0(i), 
+              label_cell_groups = FALSE))
+    }
+dev.off()
+```
+
+```{r cogapsVisuals}
+for(i in 1:length(gwCogapsRes)){
+    # Extract the pattern matrix
+    patMat <- gwCogapsRes[[i]]@sampleFactors
+    # initalize a temporary cds to manipulate
+    tempCds <- sbstCDSCoGAPS
+    # Merge with the column data in the cds
+    tempCds@colData <- cbind(colData(tempCds), patMat[colnames(tempCds), ])
+    # Make UMAP plots for the results
+        # initalize the pdf
+        pdf(paste0(names(gwCogapsRes[i]), "_umaps.pdf"))
+        # initalize the list 
+        umap_list <- list()
+        for (j in colnames(patMat)){
+            # plot the data
+            print(plot_cells(tempCds, color_cells_by = paste0(j),
+                  label_cell_groups = FALSE) + facet_wrap("media"))
+                  
+                # + scale_color_gradient2(name = paste0(paste0(j)), low = "grey96", high = "red"))
+        }
+        dev.off()
+        # Make Box plots for the results
+        # Extract the colData for ggplot
+        colDataDf <- as.data.frame(tempCds@colData)
+        
+        # Initalize a pdf
+        pdf(paste0(names(gwCogapsRes[i]), "_boxplots.pdf"))
+        for(k in colnames(patMat)){
+            # initalize the list
+            boxplot_list <- list()
+            # extract the categorical variables
+            categoricalVariables <- c("batch", "cellLabel", "mouse", "media", 
+                                      "day", "mouseDay", "mediaday")
+            for(l in categoricalVariables){
+                boxplot_list[[l]] <-(ggplot(colDataDf, aes_string(x = paste(l), 
+                                        y = paste(k))) +
+                            geom_boxplot() +
+                            theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 4)))
+            }
+            print(do.call(grid.arrange, boxplot_list))
+        }
+        dev.off()
+}
+```
+```{r}
+# Patttern Correlations----
+# Extract and matrices and append the result name
+gaps1 <- gwCogapsRes[[1]]@sampleFactors
+colnames(gaps1) <- paste0(names(gwCogapsRes[1]), "_", colnames(gaps1))
+gaps2 <- gwCogapsRes[[2]]@sampleFactors
+colnames(gaps2) <- paste0(names(gwCogapsRes[2]), "_", colnames(gaps2))
+# Merge the pattern matricies
+mergedGaps <- cbind(gaps1, gaps2[rownames(gaps1), ])
+# Calculate cor
+corMat <- cor(mergedGaps)
+# Plot cor
+heatmap(corMat)
+```
+
+##Chi2 Values for each result
+```{r}
+gaps1chi2 <- gwCogapsRes[[1]]@metadata$meanChiSq
+gaps2chi2 <- gwCogapsRes[[2]]@metadata$meanChiSq
+gaps3chi2 <- gwCogapsRes[[3]]@metadata$meanChiSq
+gaps4chi2 <- gwCogapsRes[[4]]@metadata$meanChiSq
+gaps5chi2 <- gwCogapsRes[[5]]@metadata$meanChiSq
+gaps6chi2 <- gwCogapsRes[[6]]@metadata$meanChiSq
+
+gapsmeanchi2 <- c(gaps1chi2,gaps2chi2,gaps3chi2,gaps4chi2,gaps5chi2,gaps6chi2)
+gapspatterns <- c("10","12","14","16","20","25")
+
+gapschi2Res <- as.data.frame(cbind(gapspatterns,gapsmeanchi2))
+
+ggplot(data=gapschi2Res, aes(y=gapsmeanchi2,x=gapspatterns))+geom_point()
+```
+
+

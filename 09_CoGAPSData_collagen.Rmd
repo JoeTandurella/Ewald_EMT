@@ -1,0 +1,85 @@
+---
+title: "EMT single cell collagen analysis"
+author: "Gaurav Sharma, Atul Deshpande, Elana Fertig"
+date: "3/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries}
+library(monocle3)
+library(dplyr)
+library(pheatmap)
+library(ggplot2)
+library('sva')
+library('ComplexHeatmap')
+library(circlize)
+library(readxl)
+library(tidyverse)
+sessionInfo()
+```
+
+# Load in proceessed data and imputed data
+
+```{r}
+load('data/EJFPsuedotimeResults2Mar2020.Rda')
+#saverObj <- readRDS('imputedDataAllGenes.rds')
+#impute <- saverObj$estimate
+#impute <- impute[apply(impute,1,max)>0,]
+
+##Load EMT Genes
+Revision_EMTGenes <- read_excel("data/Revision_EMTGenes.xlsx")
+
+##Create CDS with Collagen and Matrigel for top_markers
+cdsNormCollagenMatrigel <- cdsNorm[,!pData(cdsNorm)$media=='CellLine']
+cdsNormCollagenMatrigel <- cluster_cells(cdsNormCollagenMatrigel)
+
+##Verify Revised gene list is present in data
+Genes_not_present <- Revision_EMTGenes %>% pull(Name) %>% .[!(. %in% rownames(counts(cdsNormCollagenMatrigel)))]
+Genes_present <- Revision_EMTGenes %>% pull(Name) %>% .[. %in% rownames(counts(cdsNormCollagenMatrigel))]
+
+##Plot Revised gene list to verify presence in the data 
+pdf("Revision/Revision_EMTGenes_Umaps.pdf")
+for (i in 1:length(Genes_present)){
+    print(plot_cells(cdsNorm, genes = paste0(Genes_present[i]))+facet_wrap("media")+ labs(title=paste0(Genes_present[i])))
+}
+dev.off()
+```
+
+# Extract more limited set of genes for CoGAPS analysis
+```{r}
+tg1000 <- top_markers(cdsNormCollagenMatrigel, genes_to_test_per_group = 1000)
+save(tg1000, file="Cogaps/Collagen_Revised/TG1000.rda")
+
+```
+
+##Verify that genes in Revision_EMTGenes are present in tg
+```{r}
+Genes_not_presentTG1000 <- Revision_EMTGenes %>% pull(Name) %>% .[!(. %in% tg1000$gene_id)]
+Genes_presentTG1000 <- Revision_EMTGenes %>% pull(Name) %>% .[. %in% tg1000$gene_id]
+
+##add the genes not present in TG1000 manually
+CoGAPS_genesubset<- c(unique(tg1000$gene_id),Genes_not_presentTG1000)
+```
+
+# Full data with subset genes for CoGAPS analysis
+```{r}
+sbstCDSCoGAPS <- cdsNorm[rownames(cdsNorm) %in% CoGAPS_genesubset,]
+# save the object
+saveRDS(sbstCDSCoGAPS, file = "Cogaps/Collagen_Revised/sbstCdsCoGAPS.rds")
+saveRDS(counts(sbstCDSCoGAPS), file = "Cogaps/Collagen_Revised/countsSbstCdsCoGAPS.rds")
+```
+
+#Full data with all genes -- This result was used in final analysis
+```{r}
+CDSCoGAPS <- cdsNorm
+
+# save the object
+saveRDS(CDSCoGAPS, file = "Cogaps/Whole/CDSCoGAPS.rds")
+saveRDS(counts(CDSCoGAPS), file = "Cogaps/Whole/countsCDSCoGAPS.rds")
+
+```
+
