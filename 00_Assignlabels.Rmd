@@ -1,0 +1,125 @@
+---
+title: "00_Assignlabels"
+author: "Guarav"
+date: "7/25/2022"
+output: html_document
+---
+
+```{r setup}
+library(deMULTIplex)
+library(ggplot2)
+library(Matrix)
+```
+
+```{r}
+#define file names
+day <- 'D5'
+mtxFile <- paste0('cells_x_features',day,'BC.mtx')
+barcodesFile <- paste0('cells_x_features.barcodes',day,'BC.txt')
+sampleFile <- paste0('cells_x_features.genes',day,'BC.txt')
+subsetNos <- if(day == 'D3'){
+  10:18}else if(day=='D1'){
+    1:9} else{
+    19:27}
+filteredBarcodes <- paste0('D1-D3-D5-byHaiping/',day,'/filtered_feature_bc_matrix/barcodes.tsv')
+plotThresholdFileName <- paste0('figures/plotThresholdDeMULTIplex',day,'BCCellranger.png')
+tsneFileName <- paste0('BC',day,'Cellrangercheck3K.pdf')
+finalFileName <- paste0('finalCallDeMULTIplexBC',day,'Cellranger.txt')
+finalcallsFile <- paste0('finalSampleLabels',day,'.txt')
+```
+
+```{r}
+#read cell x barcodes
+cb <- readMM(mtxFile)
+cb <- as.matrix(cb)
+#barcodes
+barcodes <- read.table(barcodesFile,stringsAsFactors = F)
+rownames(cb) <- barcodes$V1
+sampleLabel <- read.table(sampleFile,stringsAsFactors = F)
+colnames(cb) <- sampleLabel$V1
+#subset only labels for that day
+cb <- cb[,subsetNos]
+#read 6k cells data filtered using cellranger
+cellBarcodes <- read.table(filteredBarcodes,stringsAsFactors = F)
+cellBarcodes <- sapply(cellBarcodes$V1,function(x) strsplit(x,'-',fixed = T)[[1]][1])
+cellBarcodes <- unname(cellBarcodes)
+cellBarcodes <- cellBarcodes[cellBarcodes %in% barcodes$V1]
+#subset cellBarcode data
+cb <- cb[cellBarcodes,]
+```
+
+
+```{r}
+bar.table <- cb 
+bar.table_sweep.list <- list()
+n <- 0
+for (q in seq(0.01, 0.99, by=0.02)) {
+  print(q)
+  n <- n + 1
+  bar.table_sweep.list[[n]] <- deMULTIplex::classifyCells(bar.table, q=q)
+  names(bar.table_sweep.list)[n] <- paste("q=",q,sep="")
+}
+```
+```{r}
+library(ggplot2)
+threshold.results1 <- findThresh(call.list=bar.table_sweep.list)
+plotThreshold <- ggplot(data=threshold.results1$res, aes(x=q, y=Proportion, color=Subset)) + geom_line() + theme(legend.position = "none") +  geom_vline(xintercept=threshold.results1$extrema, lty=2) + scale_color_manual(values=c("red","black","blue"))
+plotThreshold
+png(plotThresholdFileName)
+plotThreshold
+dev.off()
+```
+
+```{r}
+bar.tsne <- barTSNE(cb)
+pdf(tsneFileName)
+for (i in 3:ncol(bar.tsne)) {
+    g <- ggplot(bar.tsne, aes(x = TSNE1, y = TSNE2, color = bar.tsne[,i])) +
+    geom_point() +
+    scale_color_gradient(low = "black", high = "red") +
+    ggtitle(colnames(bar.tsne)[i]) +
+    theme(legend.position = "none") 
+    print(g)
+}
+dev.off()
+```
+
+```{r}
+## Finalize round 1 classifications, remove negative cells
+round1.calls <- deMULTIplex::classifyCells(bar.table, q=findQ(threshold.results1$res, threshold.results1$extrema))
+neg.cells <- names(round1.calls)[which(round1.calls == "Negative")]
+bar.table <- bar.table[-which(rownames(bar.table) %in% neg.cells), ]
+## Round 2 -----------------------------------------------------------------------------------------------------
+bar.table_sweep.list <- list()
+n <- 0
+for (q in seq(0.01, 0.99, by=0.02)) {
+  print(q)
+  n <- n + 1
+  bar.table_sweep.list[[n]] <- deMULTIplex::classifyCells(bar.table, q=q)
+  names(bar.table_sweep.list)[n] <- paste("q=",q,sep="")
+}
+threshold.results2 <- findThresh(call.list=bar.table_sweep.list)
+round2.calls <- deMULTIplex::classifyCells(bar.table, q=findQ(threshold.results2$res, threshold.results2$extrema))
+neg.cells <- c(neg.cells, names(round2.calls)[which(round2.calls == "Negative")])
+## Repeat until all no negative cells remain (usually 3 rounds)...
+final.calls <- c(round2.calls, rep("Negative",length(neg.cells)))
+names(final.calls) <- c(names(round2.calls),neg.cells)
+```
+
+```{r}
+table(final.calls)
+```
+```{r}
+finalDf <- as.data.frame(table(final.calls))
+write.table(finalDf,finalFileName,quote = F,sep = '\t')
+```
+
+```{r}
+fDf <- as.data.frame(final.calls)
+fDf$cellBarcodes <- names(final.calls)
+write.table(fDf,finalcallsFile,quote = F,sep = '\t')
+```
+
+```{r}
+sessionInfo()
+```
